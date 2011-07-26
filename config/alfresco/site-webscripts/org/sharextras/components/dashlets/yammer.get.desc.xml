@@ -1,0 +1,7 @@
+<webscript>
+   <shortname>Yammer Messages</shortname>
+   <description>Displays recent Yammer activity on the dashboard</description>
+   <!-- one of dashlet, site-dashlet or user-dashlet -->
+   <family>user-dashlet</family>
+   <url>/extras/components/dashlets/yammer</url>
+</webscript>

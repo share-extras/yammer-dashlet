@@ -1,0 +1,25 @@
+<alfresco-config>
+
+	<config evaluator="string-compare" condition="Remote">
+	  <remote>
+	    
+		<!-- Connector Implementations -->
+		<connector>
+			<id>http-auth</id>
+			<name>HTTP Connector with pass-thru authentication</name>
+			<description>HTTP Connector with pass-thru authentication</description>
+			<class>org.springframework.extensions.webscripts.connector.AuthorizedHttpConnector</class>
+		</connector>
+	  
+		<!-- Endpoint -->
+	    <endpoint>
+	      <id>yammer</id>
+	      <name>Yammer Remote API</name>
+	      <connector-id>http-auth</connector-id>
+	      <endpoint-url>https://www.yammer.com</endpoint-url>
+	    </endpoint>
+	    
+	  </remote>
+	</config>
+
+</alfresco-config>
