@@ -13,7 +13,12 @@ if (typeof Extras == "undefined" || !Extras)
 }
 
 /**
- * OAuth service helper
+ * OAuth service helper. Allows authentication to OAuth 1.0 services in the 
+ * client-side layer.
+ * 
+ * TODO Improve exception handling
+ * TODO Support query-string-based authentication as well as header-based
+ * TODO Move signing of requests into the web-tier - for security and to support non-PLAINTEXT encryption
  * 
  * @class OAuthHelper
  * @namespace Extras
@@ -102,28 +107,37 @@ if (typeof Extras == "undefined" || !Extras)
             * @type string
             * @default ""
             */
-           endpointId: ""
-       },
-       
-       // TODO Support multiple credentials, not just the access token and secret
-       
-      /**
-       * OAuth access token
-       * 
-       * @property accessToken
-       * @type string
-       * @default null
-       */
-      accessToken: null,
+           endpointId: "",
 
+           /**
+            * End-point relative path to the request token path resource
+            * 
+            * @property requestTokenPath
+            * @type string
+            * @default "/oauth/request_token"
+            */
+           requestTokenPath: "/oauth/request_token",
+
+           /**
+            * End-point relative path to the access token path resource
+            * 
+            * @property accessTokenPath
+            * @type string
+            * @default "/oauth/access_token"
+            */
+           accessTokenPath: "/oauth/access_token"
+       },
+      
       /**
-       * OAuth access secret
+       * OAuth authentication data, received when an access token request was granted. 
        * 
-       * @property secret
-       * @type string
-       * @default null
+       * oauth_token and oauth_token_secret are required properties but others may also be present.
+       * 
+       * @property authData
+       * @type object
+       * @default {}
        */
-      secret: null,
+      authData: {},
       
       /**
        * Set multiple initialization options at once.
@@ -160,9 +174,9 @@ if (typeof Extras == "undefined" || !Extras)
        */
       isConnected: function OAuth_isConnected()
       {
-          // TODO check that the token is valid as well as that it just exists
-          return this.accessToken != null && this.accessToken != "" && 
-              this.secret != null && this.secret != "";
+          // TODO check that the token is valid as well as that it just exists?
+          return this.authData.oauth_token != null && this.authData.oauth_token != "" && 
+              this.authData.oauth_token_secret != null && this.authData.oauth_token_secret != "";
       },
       
       /**
@@ -185,13 +199,8 @@ if (typeof Extras == "undefined" || !Extras)
        */
       requestToken: function OAuth_requestToken(obj)
       {
-          var now = new Date();
-              nonce = "545746008",
-              requestTokenUrl = Alfresco.constants.URL_CONTEXT + "proxy/" + this.options.endpointId + "/oauth/request_token",
-              authStr = "oauth_consumer_key=\"" + this.options.consumerKey + "\",oauth_signature_method=\"" + 
-              this.options.signatureMethod + "\"" +
-              ",oauth_timestamp=\"" + now.getTime() + "\",oauth_nonce=\"" + nonce + "\",oauth_signature=\"" + 
-              this.options.consumerSecret + "%26\"";
+          var requestTokenUrl = this._buildUrl(this.options.requestTokenPath),
+              authStr = this._buildAuthData();
           
           var callback = 
           {
@@ -219,17 +228,9 @@ if (typeof Extras == "undefined" || !Extras)
       {
           YAHOO.util.Connect.resetDefaultHeaders();
           // TODO Check resp code is 200
-          var tokens = o.responseText.split("&"),
-              respData = {}, pair;
-          for ( var i = 0; i < tokens.length; i++)
-          {
-              pair = tokens[i].split("=");
-              if (pair.length == 2)
-              {
-                  respData[pair[0]] = pair[1];
-              }
-          }
-          // TODO Check respData.oauth_callback_confirmed="true"
+          var respData = this._unpackAuthData(o.responseText);
+          // TODO Check respData.oauth_callback_confirmed="true"?
+          // TODO Check that respData.oauth_token and respData.oauth_token_secret exist and are both non-empty strings
           
           var callbacks =  {
               successHandler: o.argument.successHandler,
@@ -246,7 +247,7 @@ if (typeof Extras == "undefined" || !Extras)
                   onComplete: function OAuth_onComplete(verifier) // The callback function should invoke this in turn when the user has input the code
                   {
                       // Call requestAccessToken with the correct scope, using a closure for 'this'
-                      me.requestAccessToken.apply(me, [respData.oauth_token, respData.oauth_token_secret, verifier, callbacks]);
+                      me.requestAccessToken.apply(me, [respData, verifier, callbacks]);
                   }
               });
           }
@@ -271,21 +272,18 @@ if (typeof Extras == "undefined" || !Extras)
        * is then stored.
        * 
        * @method requestAccessToken
-       * @param token {string} Request token
-       * @param secret {string} Request secret
+       * @param data {object} Object containing request token details, including token and secret
        * @param verifier {string} OAuth verifier code
        * @param callbacks {object} Object literal defining two handler functions, 'successHandler' and 'failureHandler'.
        */
-      requestAccessToken: function OAuth_requestAccessToken(token, secret, verifier, callbacks)
+      requestAccessToken: function OAuth_requestAccessToken(data, verifier, callbacks)
       {
-          var now = new Date();
-              nonce = "545746009",
-              requestTokenUrl = Alfresco.constants.URL_CONTEXT + "proxy/" + this.options.endpointId + "/oauth/access_token",
-              authStr = "oauth_consumer_key=\"" + this.options.consumerKey + "\",oauth_token=\"" + token + 
-              "\",oauth_signature_method=\"" + 
-              this.options.signatureMethod + "\"" + ",oauth_timestamp=\"" + now.getTime() + "\",oauth_nonce=\"" + nonce + 
-              "\",oauth_verifier=\"" + verifier + "\",oauth_signature=\"" + 
-              this.options.consumerSecret + "%26" + secret + "\"";
+          var requestTokenUrl = this._buildUrl(this.options.accessTokenPath),
+              authStr = this._buildAuthData({
+                  oauth_token: data.oauth_token,
+                  oauth_verifier: verifier,
+                  oauth_signature: this.options.consumerSecret + "%26" + data.oauth_token_secret
+              });
 
           var callback = 
           {
@@ -312,19 +310,9 @@ if (typeof Extras == "undefined" || !Extras)
       {
           YAHOO.util.Connect.resetDefaultHeaders();
           // TODO Check resp code is 200
-          var tokens = o.responseText.split("&"),
-              respData = {}, pair;
-          for ( var i = 0; i < tokens.length; i++)
-          {
-              pair = tokens[i].split("=");
-              if (pair.length == 2)
-              {
-                  respData[pair[0]] = pair[1];
-              }
-          }
-          this.accessToken = respData.oauth_token;
-          this.secret = respData.oauth_token_secret;
-          
+          var respData = this._unpackAuthData(o.responseText);
+          // TODO Check that respData.oauth_token and respData.oauth_token_secret are both present
+          this.authData = respData;
           this.saveCredentials();
           
           // Call the success callback
@@ -356,8 +344,7 @@ if (typeof Extras == "undefined" || !Extras)
        */
       clearCredentials: function OAuth_clearCredentials()
       {
-          this.accessToken = "";
-          this.secret = "";
+          this.authData = "";
       },
 
       /**
@@ -377,19 +364,22 @@ if (typeof Extras == "undefined" || !Extras)
                       if (json != null && json.org != null)
                       {
                           var credentials = json.org.alfresco.share.oauth[this.options.providerId].data;
-                          if (credentials != null)
+                          if (credentials != null && credentials.length > 0)
                           {
-                              // Token has been found
-                              this.accessToken = credentials.token;
-                              this.secret = credentials.secret;
-
-                              // Call the success callback
-                              var successHandler =  obj ? obj.successHandler : null;
-                              if (successHandler && successHandler.fn && typeof (successHandler.fn) == "function")
+                              var authData = this._unpackAuthData(credentials);
+                              // Ensure both required tokens have been found
+                              if (!YAHOO.lang.isUndefined(authData.oauth_token) && !YAHOO.lang.isUndefined(authData.oauth_token_secret))
                               {
-                                  successHandler.fn.call(successHandler.scope, this.isConnected());
+                                  this.authData = authData;
                               }
                           }
+                      }
+
+                      // Call the success callback
+                      var successHandler =  obj ? obj.successHandler : null;
+                      if (successHandler && successHandler.fn && typeof (successHandler.fn) == "function")
+                      {
+                          successHandler.fn.call(successHandler.scope, this);
                       }
                   },
                   scope: this
@@ -418,42 +408,23 @@ if (typeof Extras == "undefined" || !Extras)
        */
       saveCredentials: function OAuth_saveCredentials(obj)
       {
-          // Chain the set() calls using a callback, as they don't seem to be thread-safe
-          this.preferences.set(PREFS_BASE + this.options.providerId + "." + PREF_TOKEN, this.accessToken, {
+          this.preferences.set(PREFS_BASE + this.options.providerId + "." + PREF_DATA, this._packAuthData(this.authData), {
               successCallback: {
-                  fn: function OAuth_saveCredentials_onPrefsSuccess() {
-                      this.preferences.set(PREFS_BASE + this.options.providerId + "." + PREF_SECRET, this.secret, {
-                          successCallback: {
-                              fn: function (p_resp)
-                              {
-                                  // Call the success callback
-                                  var successHandler = obj ? obj.successHandler : null;
-                                  if (successHandler && successHandler.fn && typeof (successHandler.fn) == "function")
-                                  {
-                                      successHandler.fn.call(successHandler.scope);
-                                  }
-                              },
-                              scope: this
-                          },
-                          failureCallback: {
-                              fn: function (p_resp) {
-                                  // Call the failure callback
-                                  var failureHandler = obj ?  obj.failureHandler: null;
-                                  if (failureHandler && failureHandler.fn && typeof (failureHandler.fn) == "function")
-                                  {
-                                      failureHandler.fn.call(failureHandler.scope);
-                                  }
-                              },
-                              scope: this
-                          }
-                      });
+                  fn: function (p_resp)
+                  {
+                      // Call the success callback
+                      var successHandler = obj ? obj.successHandler : null;
+                      if (successHandler && successHandler.fn && typeof (successHandler.fn) == "function")
+                      {
+                          successHandler.fn.call(successHandler.scope);
+                      }
                   },
                   scope: this
               },
               failureCallback: {
                   fn: function (p_resp) {
                       // Call the failure callback
-                      var failureHandler =  obj ? obj.failureHandler : null;
+                      var failureHandler = obj ?  obj.failureHandler: null;
                       if (failureHandler && failureHandler.fn && typeof (failureHandler.fn) == "function")
                       {
                           failureHandler.fn.call(failureHandler.scope);
@@ -472,13 +443,8 @@ if (typeof Extras == "undefined" || !Extras)
        */
       request: function OAuth_request(obj)
       {
-          var now = new Date();
-              nonce = "545746009",
-              requestUrl = Alfresco.constants.URL_CONTEXT + "proxy/" + this.options.endpointId + obj.url,
-              authStr = "oauth_consumer_key=\"" + this.options.consumerKey + "\",oauth_token=\"" + this.accessToken + 
-              "\",oauth_signature_method=\"" + 
-              this.options.signatureMethod + "\"" + ",oauth_timestamp=\"" + now.getTime() + "\",oauth_nonce=\"" + nonce + 
-              "\",oauth_signature=\"" + this.options.consumerSecret + "%26" + this.secret + "\"";
+          var requestUrl = this._buildUrl(obj.url),
+              authStr = this._buildAuthData();
 
           var callback = 
           {
@@ -489,6 +455,124 @@ if (typeof Extras == "undefined" || !Extras)
           
           YAHOO.util.Connect.initHeader("Auth", "OAuth " + authStr);
           YAHOO.util.Connect.asyncRequest(obj.method || "GET", requestUrl, callback, "");
+      },
+      
+      /**
+       * Pack OAuth data into a string
+       * 
+       * @method _packAuthData
+       * @private
+       * @param data {object} Object containing OAuth data as properties
+       * @param delimiter {string} Optional delimiter to use to separate properties, default is '&'
+       * @param quote {string} Optional Quote character to use to enclose values, default is '' (no quoting)
+       * @returns {string} String containing all property values concatenated together, delimited
+       */
+      _packAuthData: function OAuth__packAuthData(data, delimiter, quote)
+      {
+          var items = [], d, quote = quote || "";
+          for (k in data)
+          {
+              items.push("" + k + "=" + quote + data[k] + quote);
+          }
+          return items.join(delimiter || "&");
+      },
+      
+      /**
+       * Unpack OAuth data from a string
+       * 
+       * @method _unpackAuthData
+       * @private
+       * @param data {string} String containing OAuth data as properties
+       * @param delimiter {string} Optional delimiter to use to split properties, default is '&'
+       * @returns {object} Object containing all property values
+       */
+      _unpackAuthData: function OAuth__unpackAuthData(text, delimiter)
+      {
+          var tokens = text.split("&"),
+              data = {}, pair;
+          for (var i = 0; i < tokens.length; i++)
+          {
+              pair = tokens[i].split("=");
+              if (pair.length == 2)
+              {
+                  data[pair[0]] = pair[1];
+              }
+          }
+          return data;
+      },
+      
+      /**
+       * Build an OAuth URL, including parameters
+       * 
+       * @method _buildUrl
+       * @private
+       * @param path {string} URL path
+       * @param data {object} Object containing OAuth data as properties
+       * @param delimiter {string} Optional delimiter to use to separate properties, default is '&'
+       * @returns {string} Complete URL to call
+       */
+      _buildUrl: function OAuth__buildUrl(path, data, delimiter)
+      {
+          return Alfresco.constants.URL_CONTEXT + "proxy/" + this.options.endpointId + path;
+      },
+      
+      /**
+       * Build authentication data for passing to an OAuth service, and sign the request. This logic will
+       * eventually be moved to the web-tier.
+       * 
+       * @method _buildAuthData
+       * @private
+       * @param data {object} Object containing OAuth data as properties
+       * @returns {string} String containing all authentication details, with a signature added
+       */
+      _buildAuthData: function OAuth__buildAuthData(data)
+      {
+          data = data || {};
+          
+          // Fill in any missing values
+          
+          // Consumer key
+          if (typeof data.oauth_consumer_key == "undefined")
+          {
+              data.oauth_consumer_key = this.options.consumerKey;
+          }
+          
+          // Timestamp (must be accurate)
+          if (typeof data.oauth_timestamp == "undefined")
+          {
+              data.oauth_timestamp = Date.now();
+          }
+          
+          // NONCE value - unique in each request
+          if (typeof data.oauth_nonce == "undefined")
+          {
+              data.oauth_nonce = Math.floor(Math.random() * (1000000000));
+          }
+          
+          // Access token, if we have one and another token was not specified
+          if (typeof data.oauth_token == "undefined" && this.authData != null && this.authData.oauth_token != null)
+          {
+              data.oauth_token = this.authData.oauth_token;
+          }
+          
+          // Sign the request - only PLAINTEXT supported for now
+          if (this.options.signatureMethod == "PLAINTEXT")
+          {
+              if (typeof data.oauth_signature_method == "undefined")
+              {
+                  data.oauth_signature_method = this.options.signatureMethod;
+              }
+              if (typeof data.oauth_signature == "undefined")
+              {
+                  data.oauth_signature = 
+                      this.options.consumerSecret + "%26" + (this.authData != null ? (this.authData.oauth_token_secret || "") : "");
+              }
+              return this._packAuthData(data, ",", "\"");
+          }
+          else
+          {
+              throw "OAuth signature method " + this.options.signatureMethod + " not supported";
+          }
       }
       
    };
