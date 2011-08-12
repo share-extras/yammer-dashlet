@@ -4,7 +4,7 @@
 //]]></script>
 <div class="dashlet yammer-dashlet">
    <div class="title" id="${args.htmlid}-title">${msg("header")}</div>
-   <div class="body scrollableList">
+   <div class="body scrollableList" <#if args.height??>style="height: ${args.height}px;"</#if>>
      <div id="${args.htmlid}-connect" class="yammer-dashlet-connect" style="display: none;">
      	<div>${msg('message.notConnected')}</div>
      	<input type="button" id="${args.htmlid}-btn-connect" value="${msg('button.connect')}" />
