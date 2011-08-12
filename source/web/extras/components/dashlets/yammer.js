@@ -76,23 +76,6 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
        */
       options:
       {
-          /**
-           * OAuth client key
-           * 
-           * @property consumerKey
-           * @type string
-           * @default ""
-           */
-          consumerKey: "",
-
-          /**
-           * OAuth client secret
-           * 
-           * @property consumerSecret
-           * @type string
-           * @default ""
-           */
-          consumerSecret: ""
       },
 
       /**
@@ -133,8 +116,6 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
           );
           
           this.oAuth = new Extras.OAuthHelper().setOptions({
-              consumerKey: this.options.consumerKey,
-              consumerSecret: this.options.consumerSecret,
               providerId: "yammer",
               endpointId: "yammer"
           });

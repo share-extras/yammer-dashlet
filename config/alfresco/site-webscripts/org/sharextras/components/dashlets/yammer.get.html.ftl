@@ -1,9 +1,5 @@
 <script type="text/javascript">//<![CDATA[
-   new Extras.dashlet.Yammer("${args.htmlid}").setOptions(
-   {
-      "consumerKey": "${config.script.yammer.consumerKey}",
-      "consumerSecret": "${config.script.yammer.consumerSecret}"
-   }).setMessages(${messages});
+   new Extras.dashlet.Yammer("${args.htmlid}").setMessages(${messages});
    new Alfresco.widget.DashletResizer("${args.htmlid}", "${instance.object.id}");
 //]]></script>
 <div class="dashlet yammer-dashlet">

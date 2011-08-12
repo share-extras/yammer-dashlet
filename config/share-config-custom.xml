@@ -5,17 +5,17 @@
 	    
 		<!-- Connector Implementations -->
 		<connector>
-			<id>http-auth</id>
-			<name>HTTP Connector with pass-thru authentication</name>
-			<description>HTTP Connector with pass-thru authentication</description>
-			<class>org.springframework.extensions.webscripts.connector.AuthorizedHttpConnector</class>
+			<id>http-oauth</id>
+			<name>HTTP OAuth Connector</name>
+			<description>HTTP Connector with support for OAuth authentication</description>
+			<class>org.sharextras.webscripts.connector.HttpOAuthConnector</class>
 		</connector>
 	  
 		<!-- Endpoint -->
 	    <endpoint>
 	      <id>yammer</id>
 	      <name>Yammer Remote API</name>
-	      <connector-id>http-auth</connector-id>
+	      <connector-id>http-oauth</connector-id>
 	      <endpoint-url>https://www.yammer.com</endpoint-url>
 	    </endpoint>
 	    

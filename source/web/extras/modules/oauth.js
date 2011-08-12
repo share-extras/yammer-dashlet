@@ -65,24 +65,6 @@ if (typeof Extras == "undefined" || !Extras)
        options:
        {
            /**
-            * OAuth client key
-            * 
-            * @property consumerKey
-            * @type string
-            * @default ""
-            */
-           consumerKey: "",
-
-           /**
-            * OAuth client secret
-            * 
-            * @property consumerSecret
-            * @type string
-            * @default ""
-            */
-           consumerSecret: "",
-           
-           /**
             * Unique ID for the OAuth provider, for storing token data against
             * 
             * @property providerId
@@ -214,7 +196,7 @@ if (typeof Extras == "undefined" || !Extras)
               }
           };
           
-          YAHOO.util.Connect.initHeader("Auth", "OAuth " + authStr);
+          YAHOO.util.Connect.initHeader("X-OAuth-Data", authStr);
           YAHOO.util.Connect.asyncRequest("POST", requestTokenUrl, callback, "");
       },
       
@@ -282,7 +264,7 @@ if (typeof Extras == "undefined" || !Extras)
               authStr = this._buildAuthData({
                   oauth_token: data.oauth_token,
                   oauth_verifier: verifier,
-                  oauth_signature: this.options.consumerSecret + "%26" + data.oauth_token_secret
+                  oauth_token_secret: data.oauth_token_secret
               });
 
           var callback = 
@@ -296,7 +278,7 @@ if (typeof Extras == "undefined" || !Extras)
               }
           };
           
-          YAHOO.util.Connect.initHeader("Auth", "OAuth " + authStr);
+          YAHOO.util.Connect.initHeader("X-OAuth-Data", authStr);
           YAHOO.util.Connect.asyncRequest("POST", requestTokenUrl, callback, "");
       },
       
@@ -453,7 +435,7 @@ if (typeof Extras == "undefined" || !Extras)
               scope: obj.scope
           };
           
-          YAHOO.util.Connect.initHeader("Auth", "OAuth " + authStr);
+          YAHOO.util.Connect.initHeader("X-OAuth-Data", authStr);
           YAHOO.util.Connect.asyncRequest(obj.method || "GET", requestUrl, callback, "");
       },
       
@@ -531,12 +513,6 @@ if (typeof Extras == "undefined" || !Extras)
           
           // Fill in any missing values
           
-          // Consumer key
-          if (typeof data.oauth_consumer_key == "undefined")
-          {
-              data.oauth_consumer_key = this.options.consumerKey;
-          }
-          
           // Timestamp (must be accurate)
           if (typeof data.oauth_timestamp == "undefined")
           {
@@ -554,25 +530,16 @@ if (typeof Extras == "undefined" || !Extras)
           {
               data.oauth_token = this.authData.oauth_token;
           }
+          if (typeof data.oauth_token_secret == "undefined")
+          {
+              data.oauth_token_secret = this.authData.oauth_token_secret;
+          }
+          if (typeof data.oauth_signature_method == "undefined")
+          {
+              data.oauth_signature_method = this.options.signatureMethod;
+          }
           
-          // Sign the request - only PLAINTEXT supported for now
-          if (this.options.signatureMethod == "PLAINTEXT")
-          {
-              if (typeof data.oauth_signature_method == "undefined")
-              {
-                  data.oauth_signature_method = this.options.signatureMethod;
-              }
-              if (typeof data.oauth_signature == "undefined")
-              {
-                  data.oauth_signature = 
-                      this.options.consumerSecret + "%26" + (this.authData != null ? (this.authData.oauth_token_secret || "") : "");
-              }
-              return this._packAuthData(data, ",", "\"");
-          }
-          else
-          {
-              throw "OAuth signature method " + this.options.signatureMethod + " not supported";
-          }
+          return this._packAuthData(data, ",", "\"");
       }
       
    };
