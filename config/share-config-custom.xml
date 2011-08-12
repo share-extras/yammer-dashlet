@@ -5,17 +5,20 @@
 	    
 		<!-- Connector Implementations -->
 		<connector>
-			<id>http-oauth</id>
-			<name>HTTP OAuth Connector</name>
+			<id>yammer-oauth</id>
+			<name>Yammer OAuth Connector</name>
 			<description>HTTP Connector with support for OAuth authentication</description>
 			<class>org.sharextras.webscripts.connector.HttpOAuthConnector</class>
+			<consumer-key>mGiWyvQH3kF0N51X6KqQ</consumer-key>
+			<consumer-secret>SjBrZxOGN8kAv2vqKwGDxHrBW6GMQqFECoIM0pP6RaM</consumer-secret>
+			<signature-method>PLAINTEXT</signature-method>
 		</connector>
 	  
 		<!-- Endpoint -->
 	    <endpoint>
 	      <id>yammer</id>
 	      <name>Yammer Remote API</name>
-	      <connector-id>http-oauth</connector-id>
+	      <connector-id>yammer-oauth</connector-id>
 	      <endpoint-url>https://www.yammer.com</endpoint-url>
 	    </endpoint>
 	    
