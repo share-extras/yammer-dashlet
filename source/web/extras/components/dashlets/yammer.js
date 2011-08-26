@@ -44,14 +44,6 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
       $combine = Alfresco.util.combinePaths;
 
    /**
-    * Preferences
-    */
-   var PREFS_BASE = "org.alfresco.share.oauth.",
-       PREF_DATA = "data",
-       PREF_TOKEN = PREF_DATA + ".token",
-       PREF_SECRET = PREF_DATA + ".secret";
-
-   /**
     * Dashboard Yammer constructor.
     * 
     * @param {String} htmlId The HTML id of the parent element
@@ -142,6 +134,9 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
               failureHandler: { 
                   fn: function Yammer_onReady_oAuthInit() {
                       // Failed to init the oauth helper
+                      Alfresco.util.PopupManager.displayMessage({
+                          text: this.msg("error.initOAuth")
+                      });
                   }, 
                   scope: this
               }
@@ -244,7 +239,9 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                   }
               },
               failure: function() {
-                  alert("fail");
+                  Alfresco.util.PopupManager.displayMessage({
+                      text: this.msg("error.loadMessages")
+                  });
               },
               scope: this
           });
@@ -334,25 +331,22 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
          // Disable the button while we make the request
          this.widgets.connectButton.set("disabled", true);
 
-         // Callback object
-         var cbObj = {
-             successHandler: { 
-                 fn: this.onAuthSuccess, 
-                 scope: this
-             },
-             failureHandler: { 
-                 fn: this.onAuthFailure, 
-                 scope: this
-             },
-             verifyHandler:  { 
-                 fn: this.onVerify, 
-                 scope: this
-             }
-         }
-
-         if (!this.oAuth.isConnected())
+         if (!this.oAuth.isConnected()) // Double-check we are still not connected
          {
-             this.oAuth.authenticate(cbObj);
+             this.oAuth.authenticate({
+                 successHandler: { 
+                     fn: this.onAuthSuccess, 
+                     scope: this
+                 },
+                 failureHandler: { 
+                     fn: this.onAuthFailure, 
+                     scope: this
+                 },
+                 verifyHandler:  { 
+                     fn: this.onVerify, 
+                     scope: this
+                 }
+             });
          }
          else
          {
