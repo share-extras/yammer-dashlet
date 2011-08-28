@@ -4,6 +4,9 @@
 //]]></script>
 <div class="dashlet yammer-dashlet">
    <div class="title" id="${args.htmlid}-title">${msg("header")}</div>
+   <div class="toolbar">
+      <a id="${args.htmlid}-link-new-post" class="theme-color-1" title="${msg('link.yammer-new-post')}" href="">${msg('link.yammer-new-post')}</a>
+   </div>
    <div class="body scrollableList" <#if args.height??>style="height: ${args.height}px;"</#if>>
      <div id="${args.htmlid}-connect" class="yammer-dashlet-connect" style="display: none;">
      	<div>${msg('message.notConnected')}</div>

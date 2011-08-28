@@ -91,8 +91,11 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
           this.widgets.messages = Dom.get(this.id + "-messages");
           this.widgets.connect = Dom.get(this.id + "-connect");
           
-          // Set up the clear credentials button
+          // Set up the clear credentials link
           Event.addListener(this.id + "-link-clear", "click", this.onClearCredentialsClick, this, true);
+          
+          // Set up the new post link
+          Event.addListener(this.id + "-link-new-post", "click", this.onNewPostClick, this, true);
           
           // Set up the Connect button
           this.widgets.connectButton = new YAHOO.widget.Button(
@@ -236,6 +239,12 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                           this.renderTitle(json);
                           this.renderMessages(json);
                       }
+                      else
+                      {
+                          Alfresco.util.PopupManager.displayMessage({
+                              text: this.msg("error.post-bad-resp-type")
+                          });
+                      }
                   }
               },
               failure: function() {
@@ -263,11 +272,12 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
       },
       
       /**
-       * Render Yammer messages
+       * Generate messages HTML
        * 
        * @method renderMessages
+       * @private
        */
-      renderMessages: function Yammer_renderMessages(json)
+      _messagesHTML: function Yammer_renderMessages(json)
       {
           var message, createdAt, url, postedLink, u, profileUri, mugshotUri, uname, userRefs = {}, ref, html = "";
           if (json.messages)
@@ -298,7 +308,37 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                   postedLink + "</div>" + "</div>";
               }
           }
-          this.widgets.messages.innerHTML = html;
+          return html;
+      },
+      
+      /**
+       * Render Yammer messages
+       * 
+       * @method renderMessages
+       */
+      renderMessages: function Yammer_renderMessages(json)
+      {
+          this.widgets.messages.innerHTML = this._messagesHTML(json);
+      },
+      
+      /**
+       * Append additional Yammer messages
+       * 
+       * @method appendMessages
+       */
+      appendMessages: function Yammer_appendMessages(json)
+      {
+          this.widgets.messages.innerHTML += this._messagesHTML(json);
+      },
+      
+      /**
+       * Prepend additional Yammer messages
+       * 
+       * @method prependMessages
+       */
+      prependMessages: function Yammer_prependMessages(json)
+      {
+          this.widgets.messages.innerHTML = this._messagesHTML(json) + this.widgets.messages.innerHTML;
       },
       
       /**
@@ -370,6 +410,71 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
          
          this.oAuth.clearCredentials();
          this.oAuth.saveCredentials();
+      },
+      
+      /**
+       * Click handler for New Post link
+       *
+       * @method onNewPostClick
+       * @param e {object} HTML event
+       */
+      onNewPostClick: function Yammer_onNewPostClick(e, obj)
+      {
+         // Prevent default action
+         Event.stopEvent(e);
+         
+         Alfresco.util.PopupManager.getUserInput({
+             title: this.msg("label.new-post"),
+             text: this.msg("label.new-post-prompt"),
+             callback: 
+             {
+                 fn: function Yammer_onNewPostClick_postCB(value, obj) {
+                     if (value != null && value != "")
+                     {
+                         // Post the update
+                         this.oAuth.request({
+                             url: "/api/v1/messages.json",
+                             method: "POST",
+                             data: "body=" + encodeURIComponent(value).replace("%20", "+", "g"),
+                             dataType: "application/x-www-form-urlencoded",
+                             success: function(o) {
+                                 if (o.responseText == "")
+                                 {
+                                     Alfresco.util.PopupManager.displayMessage({
+                                         text: this.msg("error.post-empty-resp")
+                                     });
+                                 }
+                                 else
+                                 {
+                                     var contentType = o.getResponseHeader["Content-Type"] ||
+                                         o.getResponseHeader["content-type"];
+                                     // User provided a custom successHandler
+                                     var json = null;
+                                     if (/^\s*application\/json/.test(contentType))
+                                     {
+                                         json = Alfresco.util.parseJSON(o.responseText);
+                                         this.prependMessages(json);
+                                     }
+                                     else
+                                     {
+                                         Alfresco.util.PopupManager.displayMessage({
+                                             text: this.msg("error.post-bad-resp-type")
+                                         });
+                                     }
+                                 }
+                             },
+                             failure: function() {
+                                 Alfresco.util.PopupManager.displayMessage({
+                                     text: this.msg("error.post-message")
+                                 });
+                             },
+                             scope: this
+                         });
+                     }
+                 },
+                 scope: this
+             }
+         });
       }
       
    });

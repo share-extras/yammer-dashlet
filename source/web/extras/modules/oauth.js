@@ -421,7 +421,9 @@ if (typeof Extras == "undefined" || !Extras)
        * Make a request to the API, signing using the OAuth credentials as necessary
        * 
        * @method request
-       * @param obj {object} Object literal defining two handler functions, 'success' and 'failure', plus a 'scope' object
+       * @param obj {object} Object literal defining two handler functions, 'success' and 'failure', plus a 'scope' object.
+       * The object must also define a 'url' property, indicating the url path to connect to, plus optionally a 'method' 
+       * property (default is 'GET') and a 'data' property for POST requests.
        */
       request: function OAuth_request(obj)
       {
@@ -434,9 +436,15 @@ if (typeof Extras == "undefined" || !Extras)
               failure: obj.failure,
               scope: obj.scope
           };
-          
+
           YAHOO.util.Connect.initHeader("X-OAuth-Data", authStr);
-          YAHOO.util.Connect.asyncRequest(obj.method || "GET", requestUrl, callback, "");
+          if (typeof obj.dataType != "undefined")
+          {
+              YAHOO.util.Connect.setDefaultPostHeader(obj.dataType);
+              YAHOO.util.Connect.setDefaultXhrHeader(obj.dataType);
+              YAHOO.util.Connect.initHeader("Content-Type", obj.dataType);
+          }
+          YAHOO.util.Connect.asyncRequest(obj.method || "GET", requestUrl, callback, obj.data || "");
       },
       
       /**
@@ -512,19 +520,6 @@ if (typeof Extras == "undefined" || !Extras)
           data = data || {};
           
           // Fill in any missing values
-          
-          // Timestamp (must be accurate)
-          if (typeof data.oauth_timestamp == "undefined")
-          {
-              data.oauth_timestamp = Date.now();
-          }
-          
-          // NONCE value - unique in each request
-          if (typeof data.oauth_nonce == "undefined")
-          {
-              data.oauth_nonce = Math.floor(Math.random() * (1000000000));
-          }
-          
           // Access token, if we have one and another token was not specified
           if (typeof data.oauth_token == "undefined" && this.authData != null && this.authData.oauth_token != null)
           {
@@ -533,10 +528,6 @@ if (typeof Extras == "undefined" || !Extras)
           if (typeof data.oauth_token_secret == "undefined")
           {
               data.oauth_token_secret = this.authData.oauth_token_secret;
-          }
-          if (typeof data.oauth_signature_method == "undefined")
-          {
-              data.oauth_signature_method = this.options.signatureMethod;
           }
           
           return this._packAuthData(data, ",", "\"");
