@@ -68,7 +68,7 @@ if (typeof Extras == "undefined" || !Extras)
             * @type string
             * @default ""
             */
-           providerId: ""
+           providerId: "",
 
            /**
             * Name of the Surf endpoint used to access the remote API protected by OAuth. Must be configured in the Surf layer.
