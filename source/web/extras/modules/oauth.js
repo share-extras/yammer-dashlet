@@ -13,12 +13,11 @@ if (typeof Extras == "undefined" || !Extras)
 }
 
 /**
- * OAuth service helper. Allows authentication to OAuth 1.0 services in the 
+ * OAuth service helper. Allows authentication to OAuth 1.0(a) services in the 
  * client-side layer.
  * 
  * TODO Improve exception handling
  * TODO Support query-string-based authentication as well as header-based
- * TODO Move signing of requests into the web-tier - for security and to support non-PLAINTEXT encryption
  * 
  * @class OAuthHelper
  * @namespace Extras
@@ -36,9 +35,7 @@ if (typeof Extras == "undefined" || !Extras)
     * Preferences
     */
    var PREFS_BASE = "org.alfresco.share.oauth.",
-       PREF_DATA = "data",
-       PREF_TOKEN = PREF_DATA + ".token",
-       PREF_SECRET = PREF_DATA + ".secret";
+       PREF_DATA = "data";
 
    /**
     * Dashboard OAuthHelper constructor.
@@ -71,16 +68,7 @@ if (typeof Extras == "undefined" || !Extras)
             * @type string
             * @default ""
             */
-           providerId: "",
-           
-           /**
-            * Method used to sign OAuth requests
-            * 
-            * @property signatureMethod
-            * @type string
-            * @default "PLAINTEXT"
-            */
-           signatureMethod: "PLAINTEXT",
+           providerId: ""
 
            /**
             * Name of the Surf endpoint used to access the remote API protected by OAuth. Must be configured in the Surf layer.
