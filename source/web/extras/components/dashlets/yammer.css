@@ -29,10 +29,22 @@
     padding-left: 8px;
     padding-right: 8px;
 }
+.yammer-message-bd
+{
+   padding-bottom: 0.2em;
+}
 .yammer-message-bd,
 .yammer-message-postedOn
 {
 	margin-left: 56px;
+}
+.yammer-message div.yammer-message-postedOn,
+.yammer-message div.yammer-message-postedOn a,
+.yammer-message div.yammer-message-postedOn a:link,
+.yammer-message div.yammer-message-postedOn a:hover,
+.yammer-message div.yammer-message-postedOn a:visited
+{
+   color: #999999;
 }
 .yammer-dashlet .user-icon
 {

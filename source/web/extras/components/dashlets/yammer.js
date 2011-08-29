@@ -270,6 +270,35 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
               this.widgets.title.innerHTML = this.msg("header.named", "<span title=\"" + desc + "\">" + title + "</span>");
           }
       },
+
+      /**
+       * Insert links into message text to highlight users, hashtags and links
+       * 
+       * @method _formatMessage
+       * @private
+       * @param {string} text The plain message
+       * @param {object} refs Referenced objects
+       * @return {string} The formatted text, with hyperlinks added
+       */
+      _formatMessage: function Yammer__formatMessage(text, refs)
+      {
+         var refsRe = /\[\[(\w+):(\w+)\]\]/gm;
+         function formatRef(str, p1, p2, offset, s)
+         {
+             var ref = refs[p1][p2];
+             if (ref)
+             {
+                 return "<a href=\"" + ref.web_url + "\">" + (p1 == "tag" ? "#" : "") + ref.name + "</a>";
+             }
+             else
+             {
+                 return str;
+             }
+         };
+         text = text.replace(
+               /https?:\/\/\S+[^\s.]/gm, "<a href=\"$&\">$&</a>").replace(refsRe, formatRef);
+         return text;
+      },
       
       /**
        * Generate messages HTML
@@ -279,23 +308,26 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
        */
       _messagesHTML: function Yammer_renderMessages(json)
       {
-          var message, createdAt, url, postedLink, u, profileUri, mugshotUri, uname, userRefs = {}, ref, html = "";
+          var message, client, createdAt, url, postedLink, u, profileUri, mugshotUri, uname, userRefs = {}, ref, html = "";
           if (json.messages)
           {
+              var references = {};
               for (var i = 0; i < json.references.length; i++)
               {
                   ref = json.references[i];
-                  if (ref.type == "user")
+                  if (typeof references[ref.type] == "undefined")
                   {
-                      userRefs[ref.id] = ref;
+                      references[ref.type] = {};
                   }
+                  references[ref.type][ref.id] = ref;
               }
               for (var i = 0; i < json.messages.length; i++)
               {
                   message = json.messages[i];
                   postedOn = message.created_at;
+                  client = "<a href=\"" + message.client_url + "\">" + message.client_type + "</a>";
                   url = message.web_url;
-                  u = userRefs[message.sender_id]
+                  u = references.user[message.sender_id]
                   profileUri = u ? u.web_url : null;
                   mugshotUri = u ? u.mugshot_url : null;
                   uname = u ? u.full_name : null;
@@ -304,8 +336,8 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                   html += "<div class=\"yammer-message detail-list-item\">" + "<div class=\"yammer-message-hd\">" + 
                   "<div class=\"user-icon\"><a href=\"" + profileUri + "\" title=\"" + $html(uname) + "\"><img src=\"" + $html(mugshotUri) + "\" alt=\"" + $html(uname) + "\" width=\"48\" height=\"48\" /></a></div>" + 
                   "</div><div class=\"yammer-message-bd\">" + "<span class=\"screen-name\">" + userLink + "</span> " +
-                  message.body.plain + "</div>" + "<div class=\"yammer-message-postedOn\">" +  // or message.body.parsed?
-                  postedLink + "</div>" + "</div>";
+                  this._formatMessage(message.body.parsed, references) + "</div>" + "<div class=\"yammer-message-postedOn\">" +  // or message.body.parsed?
+                  this.msg("text.msgDetails", postedLink, client) + "</div>" + "</div>";
               }
           }
           return html;
