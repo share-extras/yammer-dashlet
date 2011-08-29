@@ -52,7 +52,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
     */
    Extras.dashlet.Yammer = function Yammer_constructor(htmlId)
    {
-      return Extras.dashlet.Yammer.superclass.constructor.call(this, "Extras.dashlet.Yammer", htmlId);
+      return Extras.dashlet.Yammer.superclass.constructor.call(this, "Extras.dashlet.Yammer", htmlId, ["selector", "event-delegate"]);
    };
 
    /**
@@ -96,6 +96,9 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
           
           // Set up the new post link
           Event.addListener(this.id + "-link-new-post", "click", this.onNewPostClick, this, true);
+          
+          // Delegate setting up the post reply links
+          Event.delegate(this.widgets.messages, "click", this.onPostReplyClick, "a.yammer-reply-link", this, true);
           
           // Set up the Connect button
           this.widgets.connectButton = new YAHOO.widget.Button(
@@ -337,7 +340,9 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                   "<div class=\"user-icon\"><a href=\"" + profileUri + "\" title=\"" + $html(uname) + "\"><img src=\"" + $html(mugshotUri) + "\" alt=\"" + $html(uname) + "\" width=\"48\" height=\"48\" /></a></div>" + 
                   "</div><div class=\"yammer-message-bd\">" + "<span class=\"screen-name\">" + userLink + "</span> " +
                   this._formatMessage(message.body.parsed, references) + "</div>" + "<div class=\"yammer-message-postedOn\">" +  // or message.body.parsed?
-                  this.msg("text.msgDetails", postedLink, client) + "</div>" + "</div>";
+                  this.msg("text.msgDetails", postedLink, client) + " <a href=\"#\" class=\"yammer-reply-link\" id=\"" + 
+                  this.id + "-reply-link-" + message.id + "\">" + 
+                  this.msg("link.yammer-reply") + "</a>" + "</div>" + "</div>";
               }
           }
           return html;
@@ -383,6 +388,72 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
       _relativeTime: function TwitterUserTimeline__getRelativeTime(d)
       {
           return typeof(Alfresco.util.relativeTime) === "function" ? Alfresco.util.relativeTime(d) : Alfresco.util.formatDate(d)
+      },
+      
+      /**
+       * Post a message
+       *
+       * @method _postMessage
+       * @param replyToId {int} ID of message this is in reply to, null otherwise
+       */
+      _postMessage: function Yammer__postMessage(replyToId)
+      {
+         Alfresco.util.PopupManager.getUserInput({
+             title: this.msg("label.new-post"),
+             text: this.msg("label.new-post-prompt"),
+             callback:
+             {
+                 fn: function Yammer_onNewPostClick_postCB(value, obj) {
+                     if (value != null && value != "")
+                     {
+                         var postBody = "body=" + encodeURIComponent(value).replace("%20", "+", "g");
+                         if (replyToId)
+                             postBody += "&replied_to_id=" + encodeURIComponent(replyToId);
+                         
+                         // Post the update
+                         this.oAuth.request({
+                             url: "/api/v1/messages.json",
+                             method: "POST",
+                             data: postBody,
+                             dataType: "application/x-www-form-urlencoded",
+                             success: function(o) {
+                                 if (o.responseText == "")
+                                 {
+                                     Alfresco.util.PopupManager.displayMessage({
+                                         text: this.msg("error.post-empty-resp")
+                                     });
+                                 }
+                                 else
+                                 {
+                                     var contentType = o.getResponseHeader["Content-Type"] ||
+                                         o.getResponseHeader["content-type"];
+                                     // User provided a custom successHandler
+                                     var json = null;
+                                     if (/^\s*application\/json/.test(contentType))
+                                     {
+                                         json = Alfresco.util.parseJSON(o.responseText);
+                                         this.prependMessages(json);
+                                     }
+                                     else
+                                     {
+                                         Alfresco.util.PopupManager.displayMessage({
+                                             text: this.msg("error.post-bad-resp-type")
+                                         });
+                                     }
+                                 }
+                             },
+                             failure: function() {
+                                 Alfresco.util.PopupManager.displayMessage({
+                                     text: this.msg("error.post-message")
+                                 });
+                             },
+                             scope: this
+                         });
+                     }
+                 },
+                 scope: this
+             }
+         });
       },
       
 
@@ -454,59 +525,21 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
       {
          // Prevent default action
          Event.stopEvent(e);
-         
-         Alfresco.util.PopupManager.getUserInput({
-             title: this.msg("label.new-post"),
-             text: this.msg("label.new-post-prompt"),
-             callback: 
-             {
-                 fn: function Yammer_onNewPostClick_postCB(value, obj) {
-                     if (value != null && value != "")
-                     {
-                         // Post the update
-                         this.oAuth.request({
-                             url: "/api/v1/messages.json",
-                             method: "POST",
-                             data: "body=" + encodeURIComponent(value).replace("%20", "+", "g"),
-                             dataType: "application/x-www-form-urlencoded",
-                             success: function(o) {
-                                 if (o.responseText == "")
-                                 {
-                                     Alfresco.util.PopupManager.displayMessage({
-                                         text: this.msg("error.post-empty-resp")
-                                     });
-                                 }
-                                 else
-                                 {
-                                     var contentType = o.getResponseHeader["Content-Type"] ||
-                                         o.getResponseHeader["content-type"];
-                                     // User provided a custom successHandler
-                                     var json = null;
-                                     if (/^\s*application\/json/.test(contentType))
-                                     {
-                                         json = Alfresco.util.parseJSON(o.responseText);
-                                         this.prependMessages(json);
-                                     }
-                                     else
-                                     {
-                                         Alfresco.util.PopupManager.displayMessage({
-                                             text: this.msg("error.post-bad-resp-type")
-                                         });
-                                     }
-                                 }
-                             },
-                             failure: function() {
-                                 Alfresco.util.PopupManager.displayMessage({
-                                     text: this.msg("error.post-message")
-                                 });
-                             },
-                             scope: this
-                         });
-                     }
-                 },
-                 scope: this
-             }
-         });
+         this._postMessage(null);
+      },
+      
+      /**
+       * Click handler for Post Reply link
+       *
+       * @method onPostReplyClick
+       * @param e {object} HTML event
+       */
+      onPostReplyClick: function Yammer_onPostReplyClick(e, matchEl, containerEl)
+      {
+         // Prevent default action
+         Event.stopEvent(e);
+         var replyToId = matchEl.id.substring(matchEl.id.lastIndexOf("-") + 1);
+         this._postMessage(replyToId);
       }
       
    });
