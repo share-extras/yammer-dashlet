@@ -90,9 +90,11 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
           this.widgets.title = Dom.get(this.id + "-title");
           this.widgets.messages = Dom.get(this.id + "-messages");
           this.widgets.connect = Dom.get(this.id + "-connect");
+          this.widgets.utils = Dom.get(this.id + "-utils");
+          this.widgets.toolbar = Dom.get(this.id + "-toolbar");
           
           // Set up the clear credentials link
-          Event.addListener(this.id + "-link-clear", "click", this.onClearCredentialsClick, this, true);
+          Event.addListener(this.id + "-link-disconnect", "click", this.onDisconnectClick, this, true);
           
           // Set up the new post link
           Event.addListener(this.id + "-link-new-post", "click", this.onNewPostClick, this, true);
@@ -197,6 +199,10 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
 
           // Remove the Connect information and button, if they are shown
           Dom.setStyle(this.widgets.connect, "display", "none");
+
+          // Enable the Disconnect button and toolbar
+          Dom.setStyle(this.widgets.utils, "display", "block");
+          Dom.setStyle(this.widgets.toolbar, "display", "block");
           
           this.loadMessages();
       },
@@ -500,21 +506,48 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
       },
       
       /**
-       * Click handler for Clear Credentials link
+       * Click handler for Disconnect link
        *
-       * @method onClearCredentialsClick
+       * @method onDisconnectClick
        * @param e {object} HTML event
        */
-      onClearCredentialsClick: function Yammer_onClearCredentialsClick(e, obj)
+      onDisconnectClick: function Yammer_onDisconnectClick(e, obj)
       {
          // Prevent default action
          Event.stopEvent(e);
-          
-         // Disable the button while we make the request
-         this.widgets.connectButton.set("disabled", true);
          
-         this.oAuth.clearCredentials();
-         this.oAuth.saveCredentials();
+         var me = this;
+         
+         Alfresco.util.PopupManager.displayPrompt({
+             title: this.msg("title.disconnect"),
+             text: this.msg("label.disconnect"),
+             buttons: [
+                 {
+                     text: Alfresco.util.message("button.ok", this.name),
+                     handler: function Yammer_onDisconnectClick_okClick() {
+                         me.oAuth.clearCredentials();
+                         me.oAuth.saveCredentials();
+                         // Remove existing messages
+                         me.widgets.messages.innerHTML = "";
+                         // Display the Connect information and button
+                         Dom.setStyle(me.widgets.connect, "display", "block");
+                         // Enable the button
+                         me.widgets.connectButton.set("disabled", false);
+                         // Disable the Disconnect button and toolbar
+                         Dom.setStyle(me.widgets.utils, "display", "none");
+                         Dom.setStyle(me.widgets.toolbar, "display", "none");
+                         this.destroy();
+                     },
+                     isDefault: true
+                 },
+                 {
+                     text: Alfresco.util.message("button.cancel", this.name),
+                     handler: function Yammer_onDisconnectClick_cancelClick() {
+                         this.destroy();
+                     }
+                 }
+             ]
+         });
       },
       
       /**

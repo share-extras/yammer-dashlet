@@ -54,6 +54,11 @@
     padding-top: 8px;
     padding-bottom: 8px;
     font-size: 90%;
+    display: none;
+}
+.yammer-dashlet-toolbar
+{
+    display: none;
 }
 .yammer-reply-link
 {
