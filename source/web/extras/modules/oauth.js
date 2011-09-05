@@ -95,7 +95,27 @@ if (typeof Extras == "undefined" || !Extras)
             * @type string
             * @default "/oauth/access_token"
             */
-           accessTokenPath: "/oauth/access_token"
+           accessTokenPath: "/oauth/access_token",
+
+           /**
+            * URI to redirect the user back to after a verification code has been received. Setting to null
+            * means this will not be set when calling request_token.
+            * 
+            * @property requestTokenCallbackUri
+            * @type string
+            * @default null
+            */
+           requestTokenCallbackUri: null,
+
+           /**
+            * Whether or not to add timestamp values to OAuth requests, rather than letting the connector add
+            * these
+            * 
+            * @property addTimestamps
+            * @type boolean
+            * @default true
+            */
+           addTimestamps: true
        },
       
       /**
@@ -127,7 +147,7 @@ if (typeof Extras == "undefined" || !Extras)
        * and secret, if they exist.
        * 
        * @method init
-       * @param obj {object}  Object literal defining two handler functions, 'successHandler' and 'failureHandler'.
+       * @param obj {object}  Object literal defining two handler functions, 'successCallback' and 'failureCallback'.
        *    Each handler is another object defining 'fn' and 'scope' properties.
        */
       init: function OAuth_init(obj)
@@ -140,9 +160,10 @@ if (typeof Extras == "undefined" || !Extras)
       /**
        * Boolean indicating whether or not the user has a valid OAuth token
        * 
+       * @method hasToken
        * @return {boolean} True if a valid token exists, false otherwise
        */
-      isConnected: function OAuth_isConnected()
+      hasToken: function OAuth_hasToken()
       {
           // TODO check that the token is valid as well as that it just exists?
           return this.authData.oauth_token != null && this.authData.oauth_token != "" && 
@@ -150,27 +171,38 @@ if (typeof Extras == "undefined" || !Extras)
       },
       
       /**
-       * Authenticate to the OAuth service
+       * Boolean indicating whether or not the user has a valid OAuth token which has been authorized
        * 
-       * @method authenticate
-       * @param {object} Object literal defining sucessHandler, failureHandler, verifyHandler functions
+       * @method isAuthorized
+       * @return {boolean} True if a valid token exists and it has been authorized by the user
        */
-      authenticate: function OAuth_authenticate(obj)
+      isAuthorized: function OAuth_isAuthorized()
       {
-          this.requestToken(obj);
+          // TODO check that the token is valid as well as that it just exists?
+          return this.authData.oauth_token != null && this.authData.oauth_token != "" && 
+              this.authData.oauth_token_secret != null && this.authData.oauth_token_secret != ""
+              && !this.authData.oauth_callback_confirmed;
       },
       
       /**
        * Request a request token and request secret by passing the consumer key
        * 
        * @method requestToken
-       * @param {object} Object literal defining sucessHandler, failureHandler, verifyHandler functions, to be passed
+       * @param {object} Object literal defining sucessHandler, failureCallback, requestTokenHandler functions, to be passed
        *    to the handlers
        */
       requestToken: function OAuth_requestToken(obj)
       {
           var requestTokenUrl = this._buildUrl(this.options.requestTokenPath),
-              authStr = this._buildAuthData();
+              authParams = {};
+          
+          // Add a callback if needed
+          if (this.options.requestTokenCallbackUri != null && !authParams.oauth_callback)
+          {
+              authParams.oauth_callback = this.options.requestTokenCallbackUri;
+          }
+          
+          var authStr = this._buildAuthData(authParams);
           
           var callback = 
           {
@@ -178,9 +210,9 @@ if (typeof Extras == "undefined" || !Extras)
               failure: this.requestTokenFailure,
               scope: this,
               argument: {
-                  successHandler: obj.successHandler,
-                  failureHandler: obj.failureHandler,
-                  verifyHandler: obj.verifyHandler
+                  successCallback: obj.successCallback,
+                  failureCallback: obj.failureCallback,
+                  requestTokenHandler: obj.requestTokenHandler
               }
           };
           
@@ -199,26 +231,36 @@ if (typeof Extras == "undefined" || !Extras)
           YAHOO.util.Connect.resetDefaultHeaders();
           // TODO Check resp code is 200
           var respData = this._unpackAuthData(o.responseText);
-          // TODO Check respData.oauth_callback_confirmed="true"?
-          // TODO Check that respData.oauth_token and respData.oauth_token_secret exist and are both non-empty strings
-          
-          var callbacks =  {
-              successHandler: o.argument.successHandler,
-              failureHandler: o.argument.failureHandler
-          };
-          
-          // Call the verify handler which should prompt the user for the verifier code
-          var verifyHandler = o.argument.verifyHandler;
-          if (verifyHandler && verifyHandler.fn && typeof (verifyHandler.fn) == "function")
+
+          if (respData.oauth_token && respData.oauth_token_secret)
           {
-              var me = this;
-              verifyHandler.fn.call(verifyHandler.scope, {
-                  authToken: respData.oauth_token,
-                  onComplete: function OAuth_onComplete(verifier) // The callback function should invoke this in turn when the user has input the code
-                  {
-                      // Call requestAccessToken with the correct scope, using a closure for 'this'
-                      me.requestAccessToken.apply(me, [respData, verifier, callbacks]);
-                  }
+              this.authData = respData;
+              
+              var callbacks =  {
+                  successCallback: o.argument.successCallback,
+                  failureCallback: o.argument.failureCallback
+              };
+              
+              // Call the request token handler which should forward the user to the authorization page
+              var requestTokenHandler = o.argument.requestTokenHandler;
+              if (requestTokenHandler && requestTokenHandler.fn && typeof (requestTokenHandler.fn) == "function")
+              {
+                  var me = this;
+                  requestTokenHandler.fn.call(requestTokenHandler.scope, {
+                      authToken: respData.oauth_token,
+                      authParams: respData,
+                      onComplete: function OAuth_onComplete(verifier) // The callback function should invoke this in turn when the user has input the code
+                      {
+                          // Call requestAccessToken with the correct scope, using a closure for 'this'
+                          me.requestAccessToken.apply(me, [respData, verifier, callbacks]);
+                      }
+                  });
+              }
+          }
+          else
+          {
+              Alfresco.util.PopupManager.displayMessage({
+                  text: "Request token fail. Required parameters not sent."
               });
           }
       },
@@ -232,7 +274,7 @@ if (typeof Extras == "undefined" || !Extras)
       requestTokenFailure: function OAuth_requestTokenFailure(o)
       {
           Alfresco.util.PopupManager.displayMessage({
-              text: "Fail"
+              text: "Request token fail"
           });
           YAHOO.util.Connect.resetDefaultHeaders();
       },
@@ -244,16 +286,18 @@ if (typeof Extras == "undefined" || !Extras)
        * @method requestAccessToken
        * @param data {object} Object containing request token details, including token and secret
        * @param verifier {string} OAuth verifier code
-       * @param callbacks {object} Object literal defining two handler functions, 'successHandler' and 'failureHandler'.
+       * @param callbacks {object} Object literal defining two handler functions, 'successCallback' and 'failureCallback'.
        */
       requestAccessToken: function OAuth_requestAccessToken(data, verifier, callbacks)
       {
           var requestTokenUrl = this._buildUrl(this.options.accessTokenPath),
-              authStr = this._buildAuthData({
+              authParams = { // just select the params we need
                   oauth_token: data.oauth_token,
                   oauth_verifier: verifier,
                   oauth_token_secret: data.oauth_token_secret
-              });
+              };
+          
+          var authStr = this._buildAuthData(authParams);
 
           var callback = 
           {
@@ -261,8 +305,8 @@ if (typeof Extras == "undefined" || !Extras)
               failure: this.requestAccessTokenFailure,
               scope: this,
               argument: {
-                  successHandler: callbacks.successHandler,
-                  failureHandler: callbacks.failureHandler
+                  successCallback: callbacks.successCallback,
+                  failureCallback: callbacks.failureCallback
               }
           };
           
@@ -281,15 +325,23 @@ if (typeof Extras == "undefined" || !Extras)
           YAHOO.util.Connect.resetDefaultHeaders();
           // TODO Check resp code is 200
           var respData = this._unpackAuthData(o.responseText);
-          // TODO Check that respData.oauth_token and respData.oauth_token_secret are both present
-          this.authData = respData;
-          this.saveCredentials();
-          
-          // Call the success callback
-          var successHandler = o.argument.successHandler;
-          if (successHandler && successHandler.fn && typeof (successHandler.fn) == "function")
+          if (respData.oauth_token && respData.oauth_token_secret)
           {
-              successHandler.fn.call(successHandler.scope);
+              this.authData = respData;
+              this.saveCredentials();
+              
+              // Call the success callback
+              var successCallback = o.argument.successCallback;
+              if (successCallback && successCallback.fn && typeof (successCallback.fn) == "function")
+              {
+                  successCallback.fn.call(successCallback.scope);
+              }
+          }
+          else
+          {
+              Alfresco.util.PopupManager.displayMessage({
+                  text: "Request access token fail. Required parameters not sent."
+              });
           }
       },
       
@@ -303,7 +355,7 @@ if (typeof Extras == "undefined" || !Extras)
       {
           YAHOO.util.Connect.resetDefaultHeaders();
           Alfresco.util.PopupManager.displayMessage({
-              text: "Fail"
+              text: "Request access token fail"
           });
       },
       
@@ -322,7 +374,7 @@ if (typeof Extras == "undefined" || !Extras)
        * service is used as storage.
        * 
        * @method loadCredentials
-       * @param obj {object}  Object literal defining two handler functions, 'successHandler' and 'failureHandler'.
+       * @param obj {object}  Object literal defining two handler functions, 'successCallback' and 'failureCallback'.
        *    Each handler is another object defining 'fn' and 'scope' properties.
        */
       loadCredentials: function OAuth_saveCredentials(obj)
@@ -346,10 +398,10 @@ if (typeof Extras == "undefined" || !Extras)
                       }
 
                       // Call the success callback
-                      var successHandler =  obj ? obj.successHandler : null;
-                      if (successHandler && successHandler.fn && typeof (successHandler.fn) == "function")
+                      var successCallback =  obj ? obj.successCallback : null;
+                      if (successCallback && successCallback.fn && typeof (successCallback.fn) == "function")
                       {
-                          successHandler.fn.call(successHandler.scope, this);
+                          successCallback.fn.call(successCallback.scope, this);
                       }
                   },
                   scope: this
@@ -357,10 +409,10 @@ if (typeof Extras == "undefined" || !Extras)
               failureCallback: {
                   fn: function (p_resp) {
                       // Call the failure callback
-                      var failureHandler = obj ? obj.failureHandler : null;
-                      if (failureHandler && failureHandler.fn && typeof (failureHandler.fn) == "function")
+                      var failureCallback = obj ? obj.failureCallback : null;
+                      if (failureCallback && failureCallback.fn && typeof (failureCallback.fn) == "function")
                       {
-                          failureHandler.fn.call(failureHandler.scope, this.isConnected());
+                          failureCallback.fn.call(failureCallback.scope);
                       }
                   },
                   scope: this
@@ -373,7 +425,7 @@ if (typeof Extras == "undefined" || !Extras)
        * service is used as storage.
        * 
        * @method saveCredentials
-       * @param obj {object}  Object literal defining two handler functions, 'successHandler' and 'failureHandler'.
+       * @param obj {object}  Object literal defining two handler functions, 'successCallback' and 'failureCallback'.
        *    Each handler is another object defining 'fn' and 'scope' properties.
        */
       saveCredentials: function OAuth_saveCredentials(obj)
@@ -383,10 +435,10 @@ if (typeof Extras == "undefined" || !Extras)
                   fn: function (p_resp)
                   {
                       // Call the success callback
-                      var successHandler = obj ? obj.successHandler : null;
-                      if (successHandler && successHandler.fn && typeof (successHandler.fn) == "function")
+                      var successCallback = obj ? obj.successCallback : null;
+                      if (successCallback && successCallback.fn && typeof (successCallback.fn) == "function")
                       {
-                          successHandler.fn.call(successHandler.scope);
+                          successCallback.fn.call(successCallback.scope);
                       }
                   },
                   scope: this
@@ -394,10 +446,10 @@ if (typeof Extras == "undefined" || !Extras)
               failureCallback: {
                   fn: function (p_resp) {
                       // Call the failure callback
-                      var failureHandler = obj ?  obj.failureHandler: null;
-                      if (failureHandler && failureHandler.fn && typeof (failureHandler.fn) == "function")
+                      var failureCallback = obj ?  obj.failureCallback: null;
+                      if (failureCallback && failureCallback.fn && typeof (failureCallback.fn) == "function")
                       {
-                          failureHandler.fn.call(failureHandler.scope);
+                          failureCallback.fn.call(failureCallback.scope);
                       }
                   },
                   scope: this
@@ -406,7 +458,7 @@ if (typeof Extras == "undefined" || !Extras)
       },
       
       /**
-       * Make a request to the API, signing using the OAuth credentials as necessary
+       * Make a request to the API, signing using the OAuth credentials as necessary. Should be compatible with Alfresco.util.Ajax.request()
        * 
        * @method request
        * @param obj {object} Object literal defining two handler functions, 'success' and 'failure', plus a 'scope' object.
@@ -417,22 +469,81 @@ if (typeof Extras == "undefined" || !Extras)
       {
           var requestUrl = this._buildUrl(obj.url),
               authStr = this._buildAuthData();
+          
+          obj.method = obj.method || Alfresco.util.Ajax.GET;
+          
+          var objToParamString = function(o)
+          {
+              var params = "", first = true, attr;
+              for (attr in o)
+              {
+                  if (o.hasOwnProperty(attr))
+                  {
+                      if (first)
+                      {
+                          first = false;
+                      }
+                      else
+                      {
+                          params += "&";
+                      }
+                      params += encodeURIComponent(attr) + "=" + encodeURIComponent(o[attr]);
+                  }
+              }
+              return params;
+          }
+          
+          if (YAHOO.lang.isObject(obj.dataObj))
+          {
+              if (obj.method.toUpperCase() == Alfresco.util.Ajax.GET)
+              {
+                  requestUrl = requestUrl += (requestUrl.indexOf("?") == -1 ? "?" : "&") + objToParamString(obj.dataObj, true);
+              }
+              else
+              {
+                  var reqType = obj.requestContentType || Alfresco.util.Ajax.FORM;
+                  if (!YAHOO.lang.isValue(obj.dataStr))
+                  {
+                      if ((new RegExp("^\s*" + Alfresco.util.Ajax.FORM)).test(contentType))
+                      {
+                          obj.dataStr = objToParamString(obj.dataObj);
+                      }
+                      else if ((new RegExp("^\s*" + Alfresco.util.Ajax.JSON)).test(contentType))
+                      {
+                          obj.dataStr = YAHOO.lang.JSON.stringify(c.dataObj || {});
+                      }
+                  }
+              }
+          }
 
           var callback = 
           {
-              success: obj.success,
-              failure: obj.failure,
+              success: function OAuth_onRequestSuccess(o) {
+                  var cbObj = o;
+                  var contentType = o.getResponseHeader["Content-Type"] ||
+                  o.getResponseHeader["content-type"];
+                  // User provided a custom successCallback
+                  var json = null;
+                  if ((new RegExp("^\s*" + Alfresco.util.Ajax.JSON)).test(contentType))
+                  {
+                      cbObj.json = Alfresco.util.parseJSON(o.responseText);
+                  }
+                  obj.successCallback.fn.call(obj.successCallback.scope, cbObj);
+              },
+              failure: function OAuth_onRequestFailure(o) {
+                  obj.failureCallback.fn.call(obj.failureCallback.scope, o);
+              },
               scope: obj.scope
           };
 
           YAHOO.util.Connect.initHeader("X-OAuth-Data", authStr);
-          if (typeof obj.dataType != "undefined")
+          if (typeof obj.requestContentType != "undefined")
           {
-              YAHOO.util.Connect.setDefaultPostHeader(obj.dataType);
-              YAHOO.util.Connect.setDefaultXhrHeader(obj.dataType);
-              YAHOO.util.Connect.initHeader("Content-Type", obj.dataType);
+              YAHOO.util.Connect.setDefaultPostHeader(obj.requestContentType);
+              YAHOO.util.Connect.setDefaultXhrHeader(obj.requestContentType);
+              YAHOO.util.Connect.initHeader("Content-Type", obj.requestContentType);
           }
-          YAHOO.util.Connect.asyncRequest(obj.method || "GET", requestUrl, callback, obj.data || "");
+          YAHOO.util.Connect.asyncRequest(obj.method, requestUrl, callback, obj.dataStr || "");
       },
       
       /**
@@ -495,8 +606,7 @@ if (typeof Extras == "undefined" || !Extras)
       },
       
       /**
-       * Build authentication data for passing to an OAuth service, and sign the request. This logic will
-       * eventually be moved to the web-tier.
+       * Build authentication data for passing to an OAuth service
        * 
        * @method _buildAuthData
        * @private
@@ -508,12 +618,18 @@ if (typeof Extras == "undefined" || !Extras)
           data = data || {};
           
           // Fill in any missing values
+          
+          // Timestamp
+          if (this.options.addTimestamps)
+          {
+              data.oauth_timestamp = Math.floor(Date.now()/1000);
+          }
           // Access token, if we have one and another token was not specified
           if (typeof data.oauth_token == "undefined" && this.authData != null && this.authData.oauth_token != null)
           {
               data.oauth_token = this.authData.oauth_token;
           }
-          if (typeof data.oauth_token_secret == "undefined")
+          if (typeof data.oauth_token_secret == "undefined" && this.authData != null && this.authData.oauth_token_secret != null)
           {
               data.oauth_token_secret = this.authData.oauth_token_secret;
           }

@@ -119,10 +119,10 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
           });
           
           this.oAuth.init({
-              successHandler: { 
+              successCallback: { 
                   fn: function Yammer_onReady_oAuthInit()
                   {
-                      if (!this.oAuth.isConnected())
+                      if (!this.oAuth.hasToken())
                       {
                           // Display the Connect information and button
                           Dom.setStyle(this.widgets.connect, "display", "block");
@@ -137,7 +137,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                   }, 
                   scope: this
               },
-              failureHandler: { 
+              failureCallback: { 
                   fn: function Yammer_onReady_oAuthInit() {
                       // Failed to init the oauth helper
                       Alfresco.util.PopupManager.displayMessage({
@@ -155,12 +155,12 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
        * Callback method used to prompt the user for a verification code to confirm that the
        * application has been granted access
        * 
-       * @method onVerify
+       * @method onRequestTokenGranted
        * @param {object} obj Object literal containing properties
        *    authToken {string} the value of the temporary token granted
        *    onComplete {function} the callback function to be called to pass back the value provided by the user
        */
-      onVerify: function Yammer_onVerify(obj)
+      onRequestTokenGranted: function Yammer_onRequestTokenGranted(obj)
       {
           var authToken = obj.authToken,
               callbackFn = obj.onComplete,
@@ -174,7 +174,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
               text: this.msg("label.verificationPrompt"),
               callback: 
               {
-                  fn: function Yammer_onVerify_verifierCB(value, obj) {
+                  fn: function Yammer_onRequestTokenGranted_verifierCB(value, obj) {
                       if (value != null && value != "")
                       {
                           callbackFn(value);
@@ -223,39 +223,39 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
           // Get the latest messages from the server
           this.oAuth.request({
               url: "/api/v1/messages.json",
-              success: function(o) {
-                  if (o.responseText == "")
-                  {
-                      // Seems an empty response means the credentials have expired, unfortunately no error is returned by Yammer
-                      this.oAuth.clearCredentials();
-                      this.oAuth.saveCredentials();
-                  }
-                  else
-                  {
-                      var contentType = o.getResponseHeader["Content-Type"] ||
-                          o.getResponseHeader["content-type"];
-                      // User provided a custom successHandler
-                      var json = null;
-                      if (/^\s*application\/json/.test(contentType))
+              successCallback: {
+                  fn: function(o) {
+                      if (o.responseText == "")
                       {
-                          json = Alfresco.util.parseJSON(o.responseText);
-                          this.renderTitle(json);
-                          this.renderMessages(json);
+                          // Seems an empty response means the credentials have expired, unfortunately no error is returned by Yammer
+                          this.oAuth.clearCredentials();
+                          this.oAuth.saveCredentials();
                       }
                       else
                       {
-                          Alfresco.util.PopupManager.displayMessage({
-                              text: this.msg("error.post-bad-resp-type")
-                          });
+                          if (typeof o.json == "object")
+                          {
+                              this.renderTitle(o.json);
+                              this.renderMessages(o.json);
+                          }
+                          else
+                          {
+                              Alfresco.util.PopupManager.displayMessage({
+                                  text: this.msg("error.post-bad-resp-type")
+                              });
+                          }
                       }
-                  }
+                  },
+                  scope: this
               },
-              failure: function() {
-                  Alfresco.util.PopupManager.displayMessage({
-                      text: this.msg("error.loadMessages")
-                  });
-              },
-              scope: this
+              failureCallback: {
+                  fn: function() {
+                      Alfresco.util.PopupManager.displayMessage({
+                          text: this.msg("error.loadMessages")
+                      });
+                  },
+                  scope: this
+              }
           });
       },
       
@@ -406,48 +406,50 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                  fn: function Yammer_onNewPostClick_postCB(value, obj) {
                      if (value != null && value != "")
                      {
-                         var postBody = "body=" + encodeURIComponent(value).replace("%20", "+", "g");
+                         var dataObj = {
+                                 body: value
+                         };
                          if (replyToId)
-                             postBody += "&replied_to_id=" + encodeURIComponent(replyToId);
+                             dataObj.replied_to_id = replyToId;
                          
                          // Post the update
                          this.oAuth.request({
                              url: "/api/v1/messages.json",
                              method: "POST",
-                             data: postBody,
-                             dataType: "application/x-www-form-urlencoded",
-                             success: function(o) {
-                                 if (o.responseText == "")
-                                 {
-                                     Alfresco.util.PopupManager.displayMessage({
-                                         text: this.msg("error.post-empty-resp")
-                                     });
-                                 }
-                                 else
-                                 {
-                                     var contentType = o.getResponseHeader["Content-Type"] ||
-                                         o.getResponseHeader["content-type"];
-                                     // User provided a custom successHandler
-                                     var json = null;
-                                     if (/^\s*application\/json/.test(contentType))
+                             dataObj: dataObj,
+                             requestContentType: Alfresco.util.Ajax.FORM,
+                             successCallback: {
+                                 fn: function(o) {
+                                     if (o.responseText == "")
                                      {
-                                         json = Alfresco.util.parseJSON(o.responseText);
-                                         this.prependMessages(json);
+                                         Alfresco.util.PopupManager.displayMessage({
+                                             text: this.msg("error.post-empty-resp")
+                                         });
                                      }
                                      else
                                      {
-                                         Alfresco.util.PopupManager.displayMessage({
-                                             text: this.msg("error.post-bad-resp-type")
-                                         });
+                                         if (typeof o.json == "object")
+                                         {
+                                             this.prependMessages(o.json);
+                                         }
+                                         else
+                                         {
+                                             Alfresco.util.PopupManager.displayMessage({
+                                                 text: this.msg("error.post-bad-resp-type")
+                                             });
+                                         }
                                      }
-                                 }
+                                 },
+                                 scope: this
                              },
-                             failure: function() {
-                                 Alfresco.util.PopupManager.displayMessage({
-                                     text: this.msg("error.post-message")
-                                 });
-                             },
-                             scope: this
+                             failureCallback: {
+                                 fn: function() {
+                                     Alfresco.util.PopupManager.displayMessage({
+                                         text: this.msg("error.post-message")
+                                     });
+                                 },
+                                 scope: this
+                             }
                          });
                      }
                  },
@@ -474,19 +476,19 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
          // Disable the button while we make the request
          this.widgets.connectButton.set("disabled", true);
 
-         if (!this.oAuth.isConnected()) // Double-check we are still not connected
+         if (!this.oAuth.isAuthorized()) // Double-check we are still not connected
          {
-             this.oAuth.authenticate({
-                 successHandler: { 
+             this.oAuth.requestToken({
+                 successCallback: { 
                      fn: this.onAuthSuccess, 
                      scope: this
                  },
-                 failureHandler: { 
+                 failureCallback: { 
                      fn: this.onAuthFailure, 
                      scope: this
                  },
-                 verifyHandler:  { 
-                     fn: this.onVerify, 
+                 requestTokenHandler:  { 
+                     fn: this.onRequestTokenGranted, 
                      scope: this
                  }
              });
