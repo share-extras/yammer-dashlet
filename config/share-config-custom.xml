@@ -3,7 +3,7 @@
 	<config evaluator="string-compare" condition="Remote">
 	  <remote>
 	    
-		<!-- Connector Implementations -->
+		<!-- Connector instance -->
 		<connector>
 			<id>yammer-oauth</id>
 			<name>Yammer OAuth Connector</name>
