@@ -55,3 +55,19 @@
     padding-bottom: 8px;
     font-size: 90%;
 }
+.yammer-reply-link
+{
+	display: inline-block;
+	background-image: url('../../../components/images/reply-to-discussion-16.png');
+	width: 16px;
+	height: 16px;
+	overflow: hidden;
+}
+.yammer-reply-link span
+{
+	display: inline-block;
+	visibility: hidden;
+	width: 16px;
+	height: 16px;
+	overflow: hidden;
+}

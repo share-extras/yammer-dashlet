@@ -341,8 +341,8 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                   "</div><div class=\"yammer-message-bd\">" + "<span class=\"screen-name\">" + userLink + "</span> " +
                   this._formatMessage(message.body.parsed, references) + "</div>" + "<div class=\"yammer-message-postedOn\">" +  // or message.body.parsed?
                   this.msg("text.msgDetails", postedLink, client) + " <a href=\"#\" class=\"yammer-reply-link\" id=\"" + 
-                  this.id + "-reply-link-" + message.id + "\">" + 
-                  this.msg("link.yammer-reply") + "</a>" + "</div>" + "</div>";
+                  this.id + "-reply-link-" + message.id + "\"><span>" + 
+                  this.msg("link.yammer-reply") + "</span></a>" + "</div>" + "</div>";
               }
           }
           return html;
