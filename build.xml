@@ -5,7 +5,7 @@
                             ***********************************
     
     Author: Will Abson
-    Version: 1.6
+    Version: 1.3
     
     Provides a set of targets for building extensions to Alfresco Share in ZIP, AMP and JAR archive 
     formats. Since Alfresco 3.3, JAR is the recommended package structure for all simple extensions.
@@ -15,14 +15,13 @@
     
         /build.xml - This file
         /config - All web-tier configuration files, e.g. web scripts and Surf configuration
-        /source/web - All static resource files, e.g. CSS, JS (optional)
-        /source/java - All Java source files (optional)
+        /source/web - All static resource files, e.g. CSS, JS
         
     For building AMP files, the files module.properties and file-mapping.properties are also required
     in the project's root directory.
     
-    During the build process, a temporary 'build' directory will be created in the base 
-    project directory. This may be removed at any time using the 'clean' target.
+    During the build process, temporary 'build' and 'dist' directories will be created in the base 
+    project directory. These may be removed at any time using the 'clean' target.
 
 -->
 <project basedir="." default="dist-jar" name="Share Extras Build Script">
@@ -43,7 +42,6 @@
     <property name="build.classes.dir" value="shared/classes" />
     <property name="build.lib.dir" value="shared/lib" />
     <property name="yuicompress.warn" value="false" />
-    <property name="javac.debug" value="off" />
     <!-- Tomcat properties to reload web scripts or the manager webapp -->
     <property name="tomcat.url" value="http://localhost:8080" />
     <property name="tomcat.repo.url" value="${tomcat.url}" />
@@ -60,16 +58,11 @@
     <property name="webapp.manager.url" value="${tomcat.url}/manager" />
     <property name="webapp.manager.username" value="admin" />
     <property name="webapp.manager.password" value="" />
-    <!-- Paths to local Tomcat instances -->
-    <property name="tomcat.repo.home" value="${tomcat.home}" />
-    <property name="tomcat.share.home" value="${tomcat.home}" />
    
-    <!-- Additional property values. Generally should not be overridden -->
+   <!-- Additional property values. Generally should not be overridden -->
     <property name="config.dir" value="${basedir}/config" />
     <property name="res.dir" value="${basedir}/source/web" />
-    <property name="src.dir" value="${basedir}/source/java" />
     <property name="build.dir" value="${basedir}/build" />
-    <property name="build.compile.dir" value="${build.dir}/classes" />
     <property name="build.jar.dir" value="${build.dir}/jar" />
     <property name="build.zip.dir" value="${build.dir}/war" />
     <property name="build.amp.dir" value="${build.dir}/amp" />
@@ -107,13 +100,6 @@
             <include name="ml-ant-http-1.1.1.jar" />
         </fileset>
     </path>
-
-    <path id="compile.classpath">
-        <fileset dir="${alfereco.sdk.dir}">
-            <include name="lib/server/dependencies/**/*.jar" />
-            <include name="lib/server/*.jar" />
-        </fileset>
-    </path>
    
     <taskdef name="http" classname="org.missinglink.ant.task.http.HttpClientTask">
         <classpath>
@@ -136,17 +122,7 @@
        <mkdir dir="${build.dir}" />
       <mkdir dir="${dist.dir}" />
    </target>
-    
-    <!-- Compile Java source code -->
-    <target name="compile" description="Compile Java source code">
-        <mkdir dir="${build.compile.dir}" />
-        <javac srcdir="${src.dir}" destdir="${build.compile.dir}" debug="${javac.debug}">
-            <classpath>
-               <path refid="compile.classpath" />
-            </classpath>
-        </javac>
-    </target>
-    
+   
     <!--
         Assemble the configuration and resource files in a JAR file structure. This mechanism 
         was introduced in Alfresco 3.3 and allows Share extensions containing both repository and 
@@ -177,11 +153,6 @@
                 <exclude name="${config.excludes}" />
             </fileset>
         </copy>
-        <!-- Copy Java class files -->
-        <copy todir="${build.jar.dir}" includeEmptyDirs="false">
-            <fileset dir="${build.compile.dir}" includes="**/*.class">
-            </fileset>
-         </copy>
         <!-- Copy web-tier resources into the JAR. These can then be loaded by browsers via Share's resources 
         servlet by prefixing their path with '/res' -->
         <mkdir dir="${build.jar.dir}/META-INF" />
@@ -202,7 +173,7 @@
     </target>
    
    <!-- Build the JAR file -->
-    <target name="dist-jar" depends="clean, prepare, compile, build-jar" 
+    <target name="dist-jar" depends="clean, prepare, build-jar" 
       description="Build a JAR file containing configuration and resource files">
       <jar destfile="${dist.dir}/${jar.name}">
          <fileset dir="${build.jar.dir}" />
@@ -295,20 +266,13 @@
         <copy todir="${build.amp.dir}/config">
             <fileset dir="${config.dir}" includes="${config.includes}" excludes="${config.excludes}" />
         </copy>
-
+      
       <!-- Copy resource files -->
         <mkdir dir="${build.amp.dir}/web" />
         <copy todir="${build.amp.dir}/web">
             <fileset dir="${res.dir}" includes="${build.res.includes}" excludes="${build.res.excludes}" />
         </copy>
 
-        <!-- Copy Java class files -->
-        <mkdir dir="${build.amp.dir}/web/WEB-INF/classes" />
-        <copy todir="${build.amp.dir}/web/WEB-INF/classes" includeEmptyDirs="false">
-            <fileset dir="${build.compile.dir}" includes="**/*.class">
-            </fileset>
-         </copy>
-        
        <!-- Minify JS -->
        <yuicompress fromdir="${res.dir}" todir="${build.amp.dir}/web" excludes="**/*-min.js" warn="${yuicompress.warn}">
           <include name="**/*.js" />
@@ -316,66 +280,44 @@
     </target>
     
     <!-- Build the AMP file -->
-    <target name="dist-amp" depends="clean, prepare, compile, build-amp" description="Build an AMP file containing all customisations">
+    <target name="dist-amp" depends="clean, prepare, build-amp" description="Build an AMP file containing all customisations">
         <zip destfile="${dist.dir}/${amp.name}">
             <fileset dir="${build.amp.dir}" />
         </zip>
     </target>
     
-    <!-- Shared path definition used to copy files into the local Tomcat instance(s) -->
-    <patternset id="hotcopy-tomcat-zip-patternset">
-        <!-- Spring config -->
-        <exclude name="**/classes/web-application-config.xml" />
-        <exclude name="**/classes/surf-config.xml" />
-        <exclude name="**/classes/alfresco/slingshot-application-context.xml" />
-        <exclude name="**/classes/alfresco/web-extension/custom-slingshot-application-context.xml" />
-        <!-- Surf config -->
-        <exclude name="**/classes/alfresco/share*-config.xml" />
-        <exclude name="**/classes/alfresco/web-extension/share-config-custom.xml" />
-    </patternset>
-
     <!--
         Hot copy individual files into a local Tomcat instance.
         
         In version 3.3 and above the JAR file mechanism is recommended for distributing your 
         customisations, but this target can still be used during development as it allows you to
-        reload changes without restarting Tomcat.
-    -->  
+        reload changes .
+    -->
     <target name="hotcopy-tomcat-zip" depends="build-zip-tomcat" description="Hot copy individual files into a local Tomcat instance">
-        <echo message="Copying repository files" />
-        <copy todir="${tomcat.repo.home}" includeEmptyDirs="false">
+        <copy todir="${tomcat.home}" includeEmptyDirs="false">
             <fileset dir="${build.zip.dir}">
-                <patternset refid="hotcopy-tomcat-zip-patternset" />
-                <!-- Exclude static resources -->
-                <exclude name="${build.res.dir}/**" />
-                <!-- Exclude web-tier config -->
-                <exclude name="**/classes/alfresco/site-webscripts/**" />
-                <exclude name="**/classes/alfresco/site-data/**" />
-                <exclude name="**/classes/alfresco/web-extension/**" />
-                <exclude name="**/classes/org/springframework/extensions/surf/**" />
+                <!-- Spring config -->
+                <exclude name="**/classes/web-application-config.xml" />
+                <exclude name="**/classes/surf-config.xml" />
+                <exclude name="**/classes/alfresco/slingshot-application-context.xml" />
+                <exclude name="**/classes/alfresco/web-extension/custom-slingshot-application-context.xml" />
+                <!-- Surf config -->
+                <exclude name="**/classes/alfresco/share*-config.xml" />
+                <exclude name="**/classes/alfresco/web-extension/share-config-custom.xml" />
             </fileset>
         </copy>
-        <echo message="Copying Share files" />
-        <copy todir="${tomcat.share.home}" includeEmptyDirs="false">
-            <fileset dir="${build.zip.dir}">
-                <patternset refid="hotcopy-tomcat-zip-patternset" />
-                <!-- Exclude repo-tier web scripts config -->
-                <exclude name="**/classes/alfresco/extension/**" />
-                <exclude name="**/classes/alfresco/templates/webscripts/**" />
-            </fileset>
-         </copy>
     </target>
 
     <!--
         Hot copy JAR file into a local Tomcat instance.
+        
+        In version 3.3 and above the JAR file mechanism is recommended for distributing your 
+        customisations, but this target can still be used during development as it allows you to
+        reload changes without restarting Tomcat.
     -->
     <target name="hotcopy-tomcat-jar" depends="dist-jar" description="Hot copy JAR file into a local Tomcat instance">
-        <mkdir dir="${tomcat.repo.home}/${build.lib.dir}" />
-        <mkdir dir="${tomcat.share.home}/${build.lib.dir}" />
-        <copy todir="${tomcat.repo.home}/${build.lib.dir}">
-            <fileset file="${dist.dir}/${jar.name}" />
-        </copy>
-        <copy todir="${tomcat.share.home}/${build.lib.dir}">
+        <mkdir dir="${tomcat.home}/${build.lib.dir}" />
+        <copy todir="${tomcat.home}/${build.lib.dir}">
             <fileset file="${dist.dir}/${jar.name}" />
         </copy>
     </target>
