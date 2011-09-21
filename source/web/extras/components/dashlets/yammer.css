@@ -62,6 +62,49 @@
 {
     display: none;
 }
+.yammer-actions
+{
+	display: none;
+}
+.yammer-message:HOVER .yammer-actions
+{
+	display: inline;
+}
+.yammer-message:HOVER
+{
+	background-color: #f2f8fd;
+}
+.yammer-favorite-link,
+.yammer-favorite-link-on,
+.yammer-reply-link
+{
+	display: inline;
+   background-image: url("yammer-sprite.png");
+   background-repeat: no-repeat;
+	height: 16px;
+	overflow: hidden;
+   padding-left: 18px;
+   margin-left: 5px;
+   font-size: 85%;
+}
+.yammer-favorite-link span,
+.yammer-favorite-link-on span,
+.yammer-reply-link span
+{
+}
+.yammer-favorite-link
+{
+   background-position: 0px -49px;
+}
+.yammer-favorite-link-on
+{
+   background-position: 0px -65px;
+}
+.yammer-reply-link
+{
+   background-position: 0px -16px;
+}
+/*
 .yammer-reply-link
 {
 	display: inline-block;
@@ -78,3 +121,4 @@
 	height: 16px;
 	overflow: hidden;
 }
+*/

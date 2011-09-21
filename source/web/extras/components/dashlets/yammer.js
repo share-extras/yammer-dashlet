@@ -99,7 +99,8 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
           // Set up the new post link
           Event.addListener(this.id + "-link-new-post", "click", this.onNewPostClick, this, true);
           
-          // Delegate setting up the post reply links
+          // Delegate setting up the favorite/unfavorite and post reply links
+          Event.delegate(this.widgets.messages, "click", this.onPostFavoriteClick, "a.yammer-favorite-link, a.yammer-favorite-link-on", this, true);
           Event.delegate(this.widgets.messages, "click", this.onPostReplyClick, "a.yammer-reply-link", this, true);
           
           // Set up the Connect button
@@ -330,6 +331,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                   }
                   references[ref.type][ref.id] = ref;
               }
+              var favorites = (json.meta && json.meta.liked_message_ids) ? json.meta.liked_message_ids : [];
               for (var i = 0; i < json.messages.length; i++)
               {
                   message = json.messages[i];
@@ -346,9 +348,12 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
                   "<div class=\"user-icon\"><a href=\"" + profileUri + "\" title=\"" + $html(uname) + "\"><img src=\"" + $html(mugshotUri) + "\" alt=\"" + $html(uname) + "\" width=\"48\" height=\"48\" /></a></div>" + 
                   "</div><div class=\"yammer-message-bd\">" + "<span class=\"screen-name\">" + userLink + "</span> " +
                   this._formatMessage(message.body.parsed, references) + "</div>" + "<div class=\"yammer-message-postedOn\">" +  // or message.body.parsed?
-                  this.msg("text.msgDetails", postedLink, client) + " <a href=\"#\" class=\"yammer-reply-link\" id=\"" + 
+                  this.msg("text.msgDetails", postedLink, client) + " <span class=\"yammer-actions\"><a href=\"#\" class=\"yammer-favorite-link" +
+                  (Alfresco.util.arrayContains(favorites, message.id) ? "-on" : "") + "\" id=\"" + 
+                  this.id + "-favorite-link-" + message.id + "\"><span>" + 
+                  this.msg("link.yammer-favorite") + "</span></a><a href=\"#\" class=\"yammer-reply-link\" id=\"" + 
                   this.id + "-reply-link-" + message.id + "\"><span>" + 
-                  this.msg("link.yammer-reply") + "</span></a>" + "</div>" + "</div>";
+                  this.msg("link.yammer-reply") + "</span></a>" + "</span></div>" + "</div>";
               }
           }
           return html;
@@ -391,7 +396,7 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
        * @private
        * @param d {date} Date object
        */
-      _relativeTime: function TwitterUserTimeline__getRelativeTime(d)
+      _relativeTime: function Yammer__getRelativeTime(d)
       {
           return typeof(Alfresco.util.relativeTime) === "function" ? Alfresco.util.relativeTime(d) : Alfresco.util.formatDate(d)
       },
@@ -401,12 +406,16 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
        *
        * @method _postMessage
        * @param replyToId {int} ID of message this is in reply to, null otherwise
+       * @param titleId {int} Message ID to use for title text (optional)
+       * @param promptId {int} Message ID to use for prompt text (optional)
        */
-      _postMessage: function Yammer__postMessage(replyToId)
+      _postMessage: function Yammer__postMessage(replyToId, titleId, promptId)
       {
+         titleId = titleId || this.msg("label.new-post");
+         promptId = promptId || this.msg("label.new-post-prompt");
          Alfresco.util.PopupManager.getUserInput({
-             title: this.msg("label.new-post"),
-             text: this.msg("label.new-post-prompt"),
+             title: this.msg(titleId),
+             text: this.msg(promptId),
              callback:
              {
                  fn: function Yammer_onNewPostClick_postCB(value, obj) {
@@ -574,8 +583,51 @@ if (typeof Extras.dashlet == "undefined" || !Extras.dashlet)
          // Prevent default action
          Event.stopEvent(e);
          var replyToId = matchEl.id.substring(matchEl.id.lastIndexOf("-") + 1);
-         this._postMessage(replyToId);
-      }
+         this._postMessage(replyToId, "label.reply", "label.reply-prompt");
+      },
+      
+      /**
+       * Click handler for Favorite link
+       *
+       * @method onPostFavoriteClick
+       * @param e {object} HTML event
+       */
+      onPostFavoriteClick: function YammerTimeline_onPostFavoriteClick(e, matchEl, obj)
+      {
+         // Prevent default action
+         Event.stopEvent(e);
+         
+         var msgId = matchEl.id.substring(matchEl.id.lastIndexOf("-") + 1), // Message id
+             isFavorite = Dom.hasClass(matchEl, "yammer-favorite-link-on"),
+             method = !isFavorite ? "POST" : "DELETE",
+             urlParams = !isFavorite ? "" : "?message_id=" + encodeURIComponent(msgId),
+             dataObj = !isFavorite ? { message_id: msgId } : null,
+             newClass = !isFavorite ? "yammer-favorite-link-on" : "yammer-favorite-link",
+             oldClass = !isFavorite ? "yammer-favorite-link" : "yammer-favorite-link-on",
+             errMsgId = !isFavorite ? "error.favorite" : "error.unfavorite";
+         
+         this.oAuth.request({
+             url: "/api/v1/messages/liked_by/current.json" + urlParams,
+             method: method,
+             dataObj: dataObj,
+             requestContentType: Alfresco.util.Ajax.FORM,
+             successCallback: {
+                 fn: function(o) {
+                     Dom.addClass(matchEl, newClass);
+                     Dom.removeClass(matchEl, oldClass);
+                 },
+                 scope: this
+             },
+             failureCallback: {
+                 fn: function() {
+                     Alfresco.util.PopupManager.displayMessage({
+                         text: this.msg(errMsgId)
+                     });
+                 },
+                 scope: this
+             }
+         });
+      },
       
    });
    
