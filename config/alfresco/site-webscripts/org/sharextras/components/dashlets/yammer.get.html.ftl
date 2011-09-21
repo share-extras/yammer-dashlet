@@ -5,7 +5,13 @@
 <div class="dashlet yammer-dashlet">
    <div class="title" id="${args.htmlid}-title">${msg("header")}</div>
    <div class="yammer-dashlet-toolbar toolbar" id="${args.htmlid}-toolbar">
-      <a id="${args.htmlid}-link-new-post" class="theme-color-1" title="${msg('link.yammer-new-post')}" href="">${msg('link.yammer-new-post')}</a>
+      <div>
+      	<span class="align-right yui-button-align">
+      		<span class="first-child">
+            	<a id="${args.htmlid}-link-new-post" class="theme-color-1" title="${msg('link.yammer-new-post')}" href="">${msg('link.yammer-new-post')}</a>
+         	</span>
+         </span>
+      </div>
    </div>
    <div class="body scrollableList" <#if args.height??>style="height: ${args.height}px;"</#if>>
      <div id="${args.htmlid}-connect" class="yammer-dashlet-connect" style="display: none;">
