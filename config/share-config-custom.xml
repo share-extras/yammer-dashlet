@@ -24,5 +24,20 @@
 	    
 	  </remote>
 	</config>
+   
+   <config evaluator="string-compare" condition="DocLibCustom">   
+      <dependencies>
+         <js src="/extras/modules/oauth.js" />
+         <js src="/extras/components/documentlibrary/actions/yammer-action.js" />   
+      </dependencies> 
+   </config>
+	
+	<config evaluator="string-compare" condition="DocLibActions">
+      <actions>
+         <action id="document-yammer-post" type="javascript" label="actions.extras.yammmer.post">
+            <param name="function">onActionPostToYammer</param>
+         </action>
+      </actions>
+   </config>
 
 </alfresco-config>
